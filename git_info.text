@@ -1,3 +1,8 @@
+
+git clone https://github.com/carolinavivast/API-Integrations.git
+cd API-Integrations
+code .
+
 git add your_notebook_file.ipynb
 git commit -m "Updated notebook with daily data"
 git push origin main
