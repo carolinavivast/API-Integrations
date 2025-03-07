@@ -12,3 +12,10 @@ git config --list
 git config --global user.email "you@example.com"
 git config --global user.name "Your Name"
 git status
+
+Eliminar un file:
+git rm Advertisement_WB.ipynb
+git commit -m "Remove Advertisement_WB.ipynb"
+git push origin main
+
+Siempre toca comentar
