@@ -1,0 +1,9 @@
+git add your_notebook_file.ipynb
+git commit -m "Updated notebook with daily data"
+git push origin main
+
+
+git config --list
+git config --global user.email "you@example.com"
+git config --global user.name "Your Name"
+git status
