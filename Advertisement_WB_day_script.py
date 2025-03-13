@@ -250,7 +250,7 @@ for df in [df_guten_stats, df_giper_stats, df_kitchen_stats, df_smart_stats]:
 
 # Group by 'date' (day only) and 'nmId', summing numeric columns except 'advertId'
 def group_campaign_stats(df):
-    return df.groupby([df["date"].dt.date, "nmId"], as_index=False).agg({
+    return df.groupby([df["date"].dt.date, "nmId","advertId"], as_index=False).agg({
         "date": "first",
         "name": "first",
         "views": "sum",
