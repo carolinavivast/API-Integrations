@@ -92,6 +92,15 @@ def fetch_campaign_statistics(url, headers, specific_date, campaign_ids, chunk_s
     
     return all_campaign_data
 
+# Function to send a single POST request
+def send_request(nm_ids, period, headers,url):
+    request_body = {
+        "nmIDs": nm_ids,
+        "period": period
+    }
+    response = requests.post(url, headers=headers, json=request_body)
+    return response
+
 # Function to fetch product statistics
 def fetch_product_statistics(url, headers, period, nm_ids, batch_size=20, requests_per_minute=3):
     all_data = []
@@ -206,7 +215,7 @@ def main():
     dataframes = []
     
     for project_name, headers in projects.items():
-        filtered_df = combined_campaigns[combined_campaigns['Project'] == project_name]
+        filtered_df = df_guten[df_guten['Project'] == project_name]
         if 'nmId' not in filtered_df.columns:
             print(f"Error: 'nmId' column not found in {project_name} data.")
             continue
