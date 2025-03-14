@@ -78,9 +78,15 @@ def fetch_campaign_statistics(url, headers, specific_date, campaign_ids, chunk_s
         time.sleep(65)  # Respect the rate limit
         
         if response.status_code == 200:
-            data = response.json()
-            all_campaign_data.extend(data)
-            print(f"Data retrieved successfully for chunk {idx + 1}")
+            try:
+                data = response.json()
+                if data is not None:  # Check if data is not None
+                    all_campaign_data.extend(data)
+                    print(f"Data retrieved successfully for chunk {idx + 1}")
+                else:
+                    print(f"Error: Empty response for chunk {idx + 1}")
+            except ValueError as e:
+                print(f"Failed to decode JSON for chunk {idx + 1}: {e}")
         else:
             print(f"Error for chunk {idx + 1}: {response.status_code}, {response.text}")
     
@@ -115,7 +121,7 @@ def fetch_product_statistics(url, headers, period, nm_ids, batch_size=20, reques
 
 # Function to insert data into ClickHouse
 def insert_into_clickhouse(client, table_name, data, columns):
-    #client.insert(table_name, data, column_names=columns)
+    client.insert(table_name, data, column_names=columns)
     print("Data inserted successfully!")
 
 # Main function to execute the script
@@ -138,10 +144,17 @@ def main():
     campaigns_kitchen = fetch_campaign_details(campaign_details_url, headers_kitchen, 'WB-KitchenAid', df_kitchen['advertId'].tolist())
     campaigns_smart = fetch_campaign_details(campaign_details_url, headers_smart, 'WB-Smart-Market', df_smart['advertId'].tolist())
     
+    # Add the 'Project' column to each DataFrame before concatenation
+    campaigns_guten['Project'] = 'WB-GutenTech'
+    campaigns_giper['Project'] = 'WB-ГиперМаркет'
+    campaigns_kitchen['Project'] = 'WB-KitchenAid'
+    campaigns_smart['Project'] = 'WB-Smart-Market'
+    
     # Combine all campaign data
     combined_campaigns = pd.concat([campaigns_guten, campaigns_giper, campaigns_kitchen, campaigns_smart], ignore_index=True)
     combined_campaigns['Marketplace'] = 'Wildberries'
-    
+    print("Columns in combined_campaigns:", combined_campaigns.columns.tolist())
+
     # Fetch campaign statistics for each project
     yesterday = date.today().replace(day=date.today().day - 1)
     specific_date = str(yesterday)
@@ -194,9 +207,12 @@ def main():
     
     for project_name, headers in projects.items():
         filtered_df = combined_campaigns[combined_campaigns['Project'] == project_name]
+        if 'nmId' not in filtered_df.columns:
+            print(f"Error: 'nmId' column not found in {project_name} data.")
+            continue
         unique_nmId_values = filtered_df['nmId'].unique().tolist()
         all_data = fetch_product_statistics(product_statistics_url, headers, period, unique_nmId_values)
-        
+  
         # Flatten the nested 'history' data
         flattened_data = []
         for item in all_data:
@@ -263,10 +279,4 @@ def main():
     print(merged_df_2.head())
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        print(f"An error occurred: {e}")
-    finally:
-        # Keep the window open after completion
-        input("Press Enter to exit...")
+    main()
