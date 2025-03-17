@@ -45,6 +45,8 @@ headers_smart = {
 yesterday = date.today().replace(day=date.today().day - 1)
 specific_date = str(yesterday)
 
+period = {"begin": specific_date, "end": specific_date}
+
 # Function to fetch campaign data
 def fetch_campaign_data(url, headers, project_name):
     response = requests.get(url, headers=headers)
@@ -305,7 +307,6 @@ def main():
         'WB-Smart-Market': headers_smart
     }
     
-    period = {"begin": specific_date, "end": specific_date}
     dataframes = []
     
     for project_name, headers in projects.items():

@@ -1,0 +1,80 @@
+TRUNCATE TABLE your_table_name; elimina toda la tabla 
+
+SELECT DISTINCT day
+FROM campaign_data_wb;
+
+Seleccion ordenada:
+
+SELECT DISTINCT day
+FROM campaign_data_wb
+ORDER BY day desc;
+
+TRUNCATE TABLE orders_wb; 
+
+
+CREATE TABLE IF NOT EXISTS orders_wb (
+    date DateTime,
+    lastChangeDate DateTime,
+    warehouseName String,
+    warehouseType String,
+    countryName String,
+    oblastOkrugName String,
+    regionName String,
+    supplierArticle String,
+    nmId UInt64,
+    barcode String,
+    category String,
+    subject String,
+    brand String,
+    techSize String,
+    incomeID UInt64,
+    isSupply UInt8,
+    isRealization UInt8,
+    totalPrice Float64,
+    discountPercent UInt8,
+    spp UInt8,
+    finishedPrice Float64,
+    priceWithDisc Float64,
+    isCancel UInt8,
+    cancelDate DateTime,
+    orderType String,
+    sticker String,
+    gNumber String,
+    srid String,
+    Marketplace String,
+    Project String
+) ENGINE = ReplacingMergeTree(lastChangeDate)
+ORDER BY (date, srid, nmId);
+
+Delete the data:
+ALTER TABLE user1.campaign_data_wb 
+delete where day>= '2025-02-01' and day<='2025-02-28';
+
+
+Get the data until some date:
+INSERT INTO user1.campaign_data_wb_new_2
+SELECT
+    nmId,
+    day,
+    name_product,
+    views,
+    clicks,
+    sum,
+    atbs,
+    orders,
+    shks,
+    sum_price,
+    advertId,
+    Project,
+    Marketplace,
+    endTime,
+    startTime,
+    createTime,
+    name_campaign,
+    status,
+    type,
+    ordersCount,
+    ordersSumRub,
+    0 AS addToCartCount  -- Default value for new column
+FROM user1.campaign_data_wb
+WHERE day <= '2025-02-28 23:59:59';

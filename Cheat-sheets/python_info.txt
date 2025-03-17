@@ -1,0 +1,3 @@
+Unique value:
+unique = df_final['advertId'].nunique()
+unique
