@@ -315,30 +315,31 @@ def main():
         print(f"Total unique nmId values for {project_name}:", len(unique_nmId_values))
         all_data = fetch_product_statistics(product_statistics_url, headers, period, unique_nmId_values)
   
-    # Flatten the nested 'history' data for easier analysis
-    flattened_data = []
-    for item in all_data:
-        nmID = item['nmID']
-        imtName = item['imtName']
-        vendorCode = item['vendorCode']
-        for history in item['history']:
-            history_entry = {
-                'nmID': nmID,
-                'imtName': imtName,
-                'vendorCode': vendorCode,
-                'dt': history['dt'],
-                'openCardCount': history['openCardCount'],
-                'addToCartCount': history['addToCartCount'],
-                'addToCartConversion': history['addToCartConversion'],
-                'ordersCount': history['ordersCount'],
-                'ordersSumRub': history['ordersSumRub'],
-                'cartToOrderConversion': history['cartToOrderConversion'],
-                'buyoutsCount': history['buyoutsCount'],
-                'buyoutsSumRub': history['buyoutsSumRub'],
-                'buyoutPercent': history['buyoutPercent']
-            }
-            flattened_data.append(history_entry)
-        
+        # Flatten the nested 'history' data for easier analysis
+        flattened_data = []
+        for item in all_data:
+            nmID = item['nmID']
+            imtName = item['imtName']
+            vendorCode = item['vendorCode']
+            for history in item['history']:
+                history_entry = {
+                    'nmID': nmID,
+                    'imtName': imtName,
+                    'vendorCode': vendorCode,
+                    'dt': history['dt'],
+                    'openCardCount': history['openCardCount'],
+                    'addToCartCount': history['addToCartCount'],
+                    'addToCartConversion': history['addToCartConversion'],
+                    'ordersCount': history['ordersCount'],
+                    'ordersSumRub': history['ordersSumRub'],
+                    'cartToOrderConversion': history['cartToOrderConversion'],
+                    'buyoutsCount': history['buyoutsCount'],
+                    'buyoutsSumRub': history['buyoutsSumRub'],
+                    'buyoutPercent': history['buyoutPercent']
+                }
+                flattened_data.append(history_entry)
+    
+        # Create a DataFrame for the current project's flattened data
         df_copy = pd.DataFrame(flattened_data)
         dataframes.append(df_copy)
     
