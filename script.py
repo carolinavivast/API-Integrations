@@ -194,36 +194,3 @@ if response_guten_report.status_code == 200 and response_giper_report.status_cod
 else:
     print(f"Failed to download task data:Guten, Giper and Kitchen Status code: {response_guten_report.status_code, response_giper_report.status_code,response_kitchen_report.status_code,response_smart_report.status_code}")
     print(f"Response: {response_guten_report.text,response_giper_report.text,response_kitchen_report.text,response_smart_report.text}")
-
-#^------------------------------In here we can check the answers received----------------------------------------
-filename = "Responses_script_stock_WB.xlsx"
-# Prepare the data for the Excel file
-data = {
-    "API": ["Guten", "Giper", "Kitchen","Smart"],
-    "Status Code": [
-        response_guten_report.status_code,
-        response_giper_report.status_code,
-        response_kitchen_report.status_code,
-        response_smart_report.status_code,
-    ],
-    "Status": [
-        "Successful" if response_guten_report.status_code == 200 else "Error",
-        "Successful" if response_giper_report.status_code == 200 else "Error",
-        "Successful" if response_kitchen_report.status_code == 200 else "Error",
-        "Successful" if response_smart_report.status_code == 200 else "Error",
-    ],
-    "Response Text": [
-        response_guten_report.text,
-        response_giper_report.text,
-        response_kitchen_report.text,
-        response_smart_report.text,
-    ],
-}
-# Create a DataFrame from the data
-df = pd.DataFrame(data)
-df['Date'] = today
-# Save the DataFrame to an Excel file
-existing_df = pd.read_excel(filename)
-updated_df = pd.concat([existing_df, df], axis=0, ignore_index=True)
-updated_df.to_excel(filename, index=False)  # Set index=False to avoid saving row numbers
-print(f"Responses saved to {filename}")
