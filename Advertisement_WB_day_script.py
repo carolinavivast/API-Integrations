@@ -311,7 +311,7 @@ password = os.getenv('ClickHouse')
 
 # Define connection parameters
 client = get_client(
-    host='rc1a-vk5i3icccvmfk6cm.mdb.yandexcloud.net',
+    host='rc1a-j5ou9lq30ldal602.mdb.yandexcloud.net',
     port=8443,
     username='user1',
     password=password,

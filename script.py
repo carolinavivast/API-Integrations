@@ -168,7 +168,7 @@ if response_guten_report.status_code == 200 and response_giper_report.status_cod
     password = os.getenv('ClickHouse')
     # Define connection parameters
     client = get_client(
-        host='rc1a-vk5i3icccvmfk6cm.mdb.yandexcloud.net',  # Your Yandex Cloud ClickHouse host
+        host='rc1a-j5ou9lq30ldal602.mdb.yandexcloud.net',  # Your Yandex Cloud ClickHouse host
         port=8443,                                          # Yandex Cloud uses port 8443 for HTTPS
         username='user1',                                      # Your ClickHouse username
         password= password,                           # Your ClickHouse password

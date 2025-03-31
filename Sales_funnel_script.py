@@ -181,7 +181,7 @@ def main():
     
     # Define connection parameters
     client = get_client(
-        host='rc1a-vk5i3icccvmfk6cm.mdb.yandexcloud.net',  # Your Yandex Cloud ClickHouse host
+        host='rc1a-j5ou9lq30ldal602.mdb.yandexcloud.net',  # Your Yandex Cloud ClickHouse host
         port=8443,                                          # Yandex Cloud uses port 8443 for HTTPS
         username='user1',                           # Your ClickHouse username
         password= password,                           # Your ClickHouse password
