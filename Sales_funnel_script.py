@@ -171,6 +171,7 @@ def main():
 
     # Combine all campaign data
     combined_df = pd.concat([df_guten, df_giper, df_kitchen, df_smart], ignore_index=True)
+    combined_df['brandName'] = combined_df['brandName'].str.upper()
     combined_df['Marketplace'] = 'Wildberries'
     print("Columns in combined_campaigns:", combined_df.columns.tolist())
     # Keep only the desired columns
