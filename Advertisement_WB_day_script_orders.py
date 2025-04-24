@@ -42,7 +42,7 @@ headers_smart = {
 
 
 # Fetch campaign statistics for each project
-yesterday = date.today().replace(day=date.today().day - 1)
+yesterday = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d')
 specific_date = str(yesterday)
 
 period = {"begin": specific_date, "end": specific_date}
@@ -104,28 +104,29 @@ def fetch_campaign_statistics(url, headers, specific_date, campaign_ids, chunk_s
             print(f"Error for chunk {idx + 1}: {response.status_code}, {response.text}")
     
     return all_campaign_data
+# Function to flatten and group campaign data
 def flatten_campaigns(data):
     flattened_data = []
     for entry in data:
-        advertId = entry["advertId"]  # Extract the advertId
-        for day in entry["days"]:
-            date = day["date"]
-            for app in day["apps"]:
-                for nm in app["nm"]:
+        advertId = entry.get("advertId")  # Extract the advertId
+        for day in entry.get("days", []):
+            date = day.get("date")
+            for app in day.get("apps", []):
+                for nm in app.get("nm", []):
                     flattened_data.append({
                         "date": date,
-                        "nmId": nm["nmId"],
-                        "name": nm["name"],
-                        "views": nm["views"],
-                        "clicks": nm["clicks"],
-                        "ctr": nm["ctr"],
-                        "cpc": nm["cpc"],
-                        "sum": nm["sum"],
-                        "atbs": nm["atbs"],
-                        "orders": nm["orders"],
-                        "cr": nm["cr"],
-                        "shks": nm["shks"],
-                        "sum_price": nm["sum_price"],
+                        "nmId": nm.get("nmId"),
+                        "name": nm.get("name"),
+                        "views": nm.get("views"),
+                        "clicks": nm.get("clicks"),
+                        "ctr": nm.get("ctr"),
+                        "cpc": nm.get("cpc"),
+                        "sum": nm.get("sum"),
+                        "atbs": nm.get("atbs"),
+                        "orders": nm.get("orders"),
+                        "cr": nm.get("cr"),
+                        "shks": nm.get("shks"),
+                        "sum_price": nm.get("sum_price"),
                         "advertId": advertId  # Add advertId to each row
                     })
     df = pd.DataFrame(flattened_data)
