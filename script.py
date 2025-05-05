@@ -4,7 +4,7 @@
 import requests
 import json
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 from clickhouse_connect import get_client
@@ -148,7 +148,7 @@ if response_guten_report.status_code == 200 and response_giper_report.status_cod
     combined_df = pd.concat([df_guten, df_giper, df_kitchen,df_smart], axis=0, ignore_index=True)
 
     # Add the current date and marketplace information
-    today = datetime.now()
+    today = datetime.now() 
     combined_df['Date'] = today
     combined_df['Marketplace'] = 'Wildberries'
     combined_df['brand'] = combined_df['brand'].str.upper()
