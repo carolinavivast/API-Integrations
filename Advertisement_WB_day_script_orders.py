@@ -42,7 +42,7 @@ headers_smart = {
 
 
 # Fetch campaign statistics for each project
-yesterday = (date.today() - timedelta(days=5)).strftime('%Y-%m-%d')
+yesterday = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d')
 specific_date = str(yesterday)
 
 period = {"begin": specific_date, "end": specific_date}
@@ -80,9 +80,12 @@ def fetch_campaign_details(url, headers, project_name, campaign_ids, chunk_size=
     
     return pd.DataFrame(all_campaign_data)
 
-# Function to fetch campaign statistics
+# Function to fetch campaign statistics (updated with empty data handling)
 def fetch_campaign_statistics(url, headers, specific_date, campaign_ids, chunk_size=100):
     all_campaign_data = []
+    if not campaign_ids:  # Return empty list if no campaign IDs
+        return all_campaign_data
+    
     campaign_chunks = [campaign_ids[i:i + chunk_size] for i in range(0, len(campaign_ids), chunk_size)]
     
     for idx, chunk in enumerate(campaign_chunks):
@@ -93,31 +96,38 @@ def fetch_campaign_statistics(url, headers, specific_date, campaign_ids, chunk_s
         if response.status_code == 200:
             try:
                 data = response.json()
-                if data is not None:  # Check if data is not None
+                if data:  # Only extend if data exists
                     all_campaign_data.extend(data)
                     print(f"Data retrieved successfully for chunk {idx + 1}")
-                else:
-                    print(f"Error: Empty response for chunk {idx + 1}")
             except ValueError as e:
                 print(f"Failed to decode JSON for chunk {idx + 1}: {e}")
         else:
             print(f"Error for chunk {idx + 1}: {response.status_code}, {response.text}")
     
-    return all_campaign_data
-# Function to flatten and group campaign data
-def flatten_campaigns(data):
+    return all_campaign_data or []  # Return empty list if no data
+
+# Function to flatten and group campaign data (updated with robust handling)
+def flatten_campaigns(data, project_name):
+    # Define expected columns for empty DataFrame
+    base_columns = [
+        "day", "nmId", "name_product", "views", "clicks", "sum", "atbs", 
+        "orders", "shks", "sum_price", "advertId", "Project", "Marketplace",
+        "endTime", "createTime", "startTime", "name_campaign", "status", "type",
+        "ordersCount", "ordersSumRub", "addToCartCount"
+    ]
+    
     if not data or not isinstance(data, list):
-        print("Warning: Empty or invalid data received in flatten_campaigns()")
-        return pd.DataFrame()  # Return empty DataFrame to avoid crashes
+        print(f"Warning: No data received for {project_name}")
+        return pd.DataFrame(columns=base_columns)  # Return empty DF with expected columns
 
     flattened_data = []
     for entry in data:
         advertId = entry.get("advertId")
-        days = entry.get("days", [])  # Safe access to 'days' (default: empty list)
+        days = entry.get("days", [])
         
         for day in days:
-            date = day.get("date")  # Safe access to 'date' (may be None)
-            if not date:  # Skip if date is missing
+            date_val = day.get("date")
+            if not date_val:
                 continue
                 
             apps = day.get("apps", [])
@@ -125,60 +135,62 @@ def flatten_campaigns(data):
                 nm_list = app.get("nm", [])
                 for nm in nm_list:
                     flattened_data.append({
-                        "date": date,
+                        "date": date_val,
                         "nmId": nm.get("nmId"),
-                        "name": nm.get("name"),
-                        "views": nm.get("views", 0),  # Default to 0 if missing
+                        "name": nm.get("name", ""),
+                        "views": nm.get("views", 0),
                         "clicks": nm.get("clicks", 0),
-                        "ctr": nm.get("ctr", 0),
-                        "cpc": nm.get("cpc", 0),
                         "sum": nm.get("sum", 0),
                         "atbs": nm.get("atbs", 0),
                         "orders": nm.get("orders", 0),
-                        "cr": nm.get("cr", 0),
                         "shks": nm.get("shks", 0),
                         "sum_price": nm.get("sum_price", 0),
                         "advertId": advertId
                     })
 
-    if not flattened_data:  # No valid data found
-        print("Warning: No flattenable data after processing")
-        return pd.DataFrame()
+    if not flattened_data:
+        print(f"Warning: No flattenable data for {project_name}")
+        return pd.DataFrame(columns=base_columns)
 
     df = pd.DataFrame(flattened_data)
     
-    # Convert 'date' to datetime (skip if column is missing)
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")  # Coerce invalid dates to NaT
-        df = df.dropna(subset=["date"])  # Drop rows with invalid dates
-    else:
-        print("Warning: 'date' column missing in flattened data")
-        return pd.DataFrame()
+    # Convert and validate date column
+    if "date" not in df.columns:
+        print(f"Warning: 'date' column missing for {project_name}")
+        return pd.DataFrame(columns=base_columns)
+        
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date"])
+    
+    if df.empty:
+        return pd.DataFrame(columns=base_columns)
 
-    # Group and aggregate data (original logic)
-    df_grouped = (
-        df.groupby([df["date"].dt.date, "nmId", "advertId"], as_index=False)
-        .agg({
-            "date": "first",
-            "name": "first",
-            "views": "sum",
-            "clicks": "sum",
-            "ctr": "mean",
-            "cpc": "mean",
-            "sum": "sum",
-            "atbs": "sum",
-            "orders": "sum",
-            "cr": "mean",
-            "shks": "sum",
-            "sum_price": "sum",
-            "advertId": "first"
-        })
-        .rename(columns={"date": "day"})
-    )
-    return df_grouped
+    # Group data with safe aggregation
+    group_cols = [df["date"].dt.date, "nmId", "advertId"]
+    agg_dict = {
+        "date": "first",
+        "name": "first",
+        "views": "sum",
+        "clicks": "sum",
+        "sum": "sum",
+        "atbs": "sum",
+        "orders": "sum",
+        "shks": "sum",
+        "sum_price": "sum",
+        "advertId": "first"
+    }
+    
+    try:
+        df_grouped = df.groupby(group_cols, as_index=False).agg(agg_dict)
+        df_grouped = df_grouped.rename(columns={"date": "day", "name": "name_product"})
+        df_grouped["Project"] = project_name
+        df_grouped["Marketplace"] = "Wildberries"
+        return df_grouped
+    except Exception as e:
+        print(f"Error grouping data for {project_name}: {str(e)}")
+        return pd.DataFrame(columns=base_columns)
     
 
-# Function to fetch product statistics
 def fetch_product_statistics(url, headers, period, nm_ids, batch_size=20, requests_per_minute=3):
     all_data = []
     interval = 60 / requests_per_minute  # Time interval between requests in seconds
@@ -191,11 +203,16 @@ def fetch_product_statistics(url, headers, period, nm_ids, batch_size=20, reques
         if response.status_code == 200:
             try:
                 data = response.json()
-                if not data.get('error') and 'data' in data:
-                    all_data.extend(data['data'])
-                    print(f"Data retrieved successfully for batch {i // batch_size + 1}")
-                else:
-                    print(f"Error in response for batch {i // batch_size + 1}: {data.get('errorText', 'No error text')}")
+                if not data or data.get('error'):  # Skip invalid responses
+                    print(f"Error in response for batch {i // batch_size + 1}: {data.get('errorText', 'No data')}")
+                    continue
+                
+                if 'data' not in data:  # Skip if 'data' field is missing
+                    print(f"No 'data' field in response for batch {i // batch_size + 1}")
+                    continue
+                
+                all_data.extend(data['data'])
+                print(f"Data retrieved successfully for batch {i // batch_size + 1}")
             except ValueError as e:
                 print(f"Failed to decode JSON for batch {i // batch_size + 1}: {e}")
         else:
