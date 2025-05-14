@@ -1,284 +1,340 @@
+# wildberries_campaign_data.py
+
 import requests
+import json
 import pandas as pd
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
+from clickhouse_connect import get_client
 from dotenv import load_dotenv
 import os
 import time
-from clickhouse_connect import get_client
 
-# Load environment variables
 load_dotenv()
 
-class WildberriesDataPipeline:
-    def __init__(self):
-        # Initialize API keys and headers
-        self.projects = {
-            'WB-GutenTech': os.getenv('KeyGuten'),
-            'WB-ГиперМаркет': os.getenv('KeyGiper'),
-            'WB-KitchenAid': os.getenv('KeyKitchen'),
-            'WB-Smart-Market': os.getenv('KeySmart')
-        }
-        self.password = os.getenv('ClickHouse')
-        
-        # API endpoints
-        self.endpoints = {
-            'campaign_count': 'https://advert-api.wildberries.ru/adv/v1/promotion/count',
-            'campaign_details': 'https://advert-api.wildberries.ru/adv/v1/promotion/adverts',
-            'campaign_stats': 'https://advert-api.wildberries.ru/adv/v2/fullstats',
-            'product_stats': 'https://seller-analytics-api.wildberries.ru/api/v2/nm-report/detail'
-        }
-        
-        # Date setup
-        self.yesterday = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d')
-        self.period = {"begin": self.yesterday, "end": self.yesterday}
-        self.yesterday_start = f"{self.yesterday} 00:00:00"
-        self.yesterday_end = f"{self.yesterday} 23:59:59"
-        
-        # Mappings
-        self.status_mapping = {
-            -1: "Кампания в процессе удаления",
-            4: "Готова к запуску",
-            7: "Кампания завершена",
-            8: "Отказался",
-            9: "Идут показы",
-            11: "Кампания на паузе"
-        }
-        
-        self.type_mapping = {
-            4: "Кампания в каталоге",
-            5: "Кампания в карточке товара",
-            6: "Кампания в поиске",
-            7: "Кампания в рекомендациях",
-            8: "Автоматическая кампания",
-            9: "Аукцион"
-        }
+# --- CONFIGURATION ---
+HEADERS = {
+    'WB-GutenTech': {
+        'Authorization': os.getenv('KeyGuten'),
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    },
+    'WB-ГиперМаркет': {
+        'Authorization': os.getenv('KeyGiper'),
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    },
+    'WB-KitchenAid': {
+        'Authorization': os.getenv('KeyKitchen'),
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    },
+    'WB-Smart-Market': {
+        'Authorization': os.getenv("KeySmart"),
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+}
 
-    def get_headers(self, api_key):
-        return {
-            'Authorization': api_key,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        }
+PROJECT_NAMES = list(HEADERS.keys())
 
-    def fetch_data(self, url, headers, method='get', params=None, json_data=None, retries=3):
-        for attempt in range(retries):
-            try:
-                if method == 'get':
-                    response = requests.get(url, headers=headers, params=params)
-                else:
-                    response = requests.post(url, headers=headers, json=json_data)
-                
-                if response.status_code == 200:
-                    return response.json()
-                elif response.status_code == 429:
-                    wait = int(response.headers.get('Retry-After', 30))
-                    print(f"Rate limited. Waiting {wait} seconds...")
-                    time.sleep(wait)
-                    continue
-                else:
-                    print(f"Error {response.status_code}: {response.text}")
-            except Exception as e:
-                print(f"Request failed: {str(e)}")
-            
-            if attempt < retries - 1:
-                time.sleep(5)
-        
+# --- UTILITY FUNCTIONS ---
+
+def get_yesterday_date(fmt='%Y-%m-%d'):
+    return (datetime.now() - timedelta(days=1)).strftime(fmt)
+
+def get_date_interval(yesterday_str):
+    return {
+        "begin": f"{yesterday_str} 00:00:00",
+        "end": f"{yesterday_str} 23:59:59"
+    }
+
+# --- API CALLS ---
+
+def fetch_advert_count(headers):
+    url = 'https://advert-api.wildberries.ru/adv/v1/promotion/count '
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error fetching advert count: {response.status_code}, {response.text}")
         return None
 
-    def get_campaign_data(self, project_name, api_key):
-        # Get campaign list
-        data = self.fetch_data(
-            self.endpoints['campaign_count'],
-            self.get_headers(api_key)
-        )
-        
+def fetch_advert_details(chunk, headers, project_name):
+    url = "https://advert-api.wildberries.ru/adv/v1/promotion/adverts "
+    query_params = {"order": "create", "direction": "desc"}
+    all_data = []
+    for idx, c in enumerate(chunk):
+        response = requests.post(url, params=query_params, json=c, headers=headers)
+        if response.status_code == 200:
+            all_data.extend(response.json())
+            print(f"[{project_name}] Fetched chunk {idx + 1}")
+        else:
+            print(f"[{project_name}] Error in chunk {idx + 1}: {response.status_code}, {response.text}")
+        time.sleep(1)
+    return pd.DataFrame(all_data)
+
+def fetch_full_stats(campaigns_df, headers, date_interval, project_name):
+    url = "https://advert-api.wildberries.ru/adv/v2/fullstats "
+    chunk_size = 100
+    chunks = [campaigns_df['advertId'][i:i + chunk_size].tolist() for i in range(0, len(campaigns_df), chunk_size)]
+    all_data = []
+
+    for idx, chunk in enumerate(chunks):
+        payload = [{"id": cid, "interval": date_interval} for cid in chunk]
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            all_data.extend(response.json())
+            print(f"[{project_name}] Full stats chunk {idx + 1} fetched")
+        else:
+            print(f"[{project_name}] Error in full stats chunk {idx + 1}: {response.status_code}, {response.text}")
+        time.sleep(65)
+    return all_data
+
+def fetch_nm_report(headers, begin, end, project_name):
+    url = "https://seller-analytics-api.wildberries.ru/api/v2/nm-report/detail "
+    page = 1
+    all_data = []
+
+    while True:
+        request_body = {
+            "period": {"begin": begin, "end": end},
+            "orderBy": {"field": "ordersSumRub", "mode": "desc"},
+            "page": page,
+            "timezone": "Europe/Moscow",
+            "brandNames": [],
+            "objectIDs": [],
+            "nmIDs": []
+        }
+        response = requests.post(url, headers=headers, json=request_body)
+        if response.status_code != 200:
+            print(f"[{project_name}] NM report request failed: {response.status_code}, {response.text}")
+            break
+
+        data = response.json()
+        cards = data.get('data', {}).get('cards', [])
+        if not cards:
+            print(f"[{project_name}] No more NM data")
+            break
+
+        all_data.extend(cards)
+        print(f"[{project_name}] Page {page} fetched ({len(cards)} items)")
+        if not data.get('data', {}).get('isNextPage', False):
+            break
+        page += 1
+        time.sleep(5)
+    return all_data
+
+# --- DATA PROCESSING ---
+
+def process_advert_data(data_guten, data_giper, data_kitchen, data_smart):
+    dfs = {}
+    for project, data in zip(PROJECT_NAMES, [data_guten, data_giper, data_kitchen, data_smart]):
         if not data:
-            return pd.DataFrame()
-            
-        df = pd.json_normalize(data['adverts'], record_path='advert_list', meta=['type', 'status', 'count'])
-        df['changeTime'] = pd.to_datetime(df['changeTime'])
-        return df.reset_index(drop=True)
-
-    def get_campaign_details(self, project_name, api_key, campaign_ids):
-        chunks = [campaign_ids[i:i+50] for i in range(0, len(campaign_ids), 50)]
-        all_data = []
-        
-        for chunk in chunks:
-            data = self.fetch_data(
-                self.endpoints['campaign_details'],
-                self.get_headers(api_key),
-                method='post',
-                params={"order": "create", "direction": "desc"},
-                json_data=chunk
-            )
-            if data:
-                all_data.extend(data)
-            time.sleep(1)
-        
-        df = pd.DataFrame(all_data)
-        df['Project'] = project_name
-        return df.sort_values('createTime', ascending=False)
-
-    def get_campaign_stats(self, project_name, api_key, campaign_ids):
-        stats = []
-        for campaign_id in campaign_ids:
-            data = self.fetch_data(
-                self.endpoints['campaign_stats'],
-                self.get_headers(api_key),
-                method='post',
-                json_data=[{
-                    "id": campaign_id,
-                    "dates": [self.yesterday]
-                }]
-            )
-            if data:
-                stats.extend(data)
-            time.sleep(65)  # Rate limit
-        
-        return self.process_campaign_stats(stats)
-
-    def process_campaign_stats(self, stats_data):
-        flattened = []
-        for entry in stats_data:
-            advert_id = entry.get("advertId")
-            for day in entry.get("days", []):
-                date = day.get("date")
-                for app in day.get("apps", []):
-                    for nm in app.get("nm", []):
-                        flattened.append({
-                            "date": date,
-                            "nmId": nm.get("nmId"),
-                            "name": nm.get("name"),
-                            "views": nm.get("views"),
-                            "clicks": nm.get("clicks"),
-                            "sum": nm.get("sum"),
-                            "atbs": nm.get("atbs"),
-                            "orders": nm.get("orders"),
-                            "shks": nm.get("shks"),
-                            "sum_price": nm.get("sum_price"),
-                            "advertId": advert_id
-                        })
-        
-        df = pd.DataFrame(flattened)
-        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
-        return df
-
-    def get_product_stats(self, project_name, api_key, nm_ids):
-        all_data = []
-        for nm_id in nm_ids:
-            data = self.fetch_data(
-                self.endpoints['product_stats'],
-                self.get_headers(api_key),
-                method='post',
-                json_data={
-                    "nmIDs": [nm_id],
-                    "period": self.period
-                }
-            )
-            if data and not data.get('error'):
-                all_data.extend(data.get('data', []))
-            time.sleep(20)  # Rate limit
-        
-        return self.process_product_stats(all_data)
-
-    def process_product_stats(self, product_data):
-        flattened = []
-        for item in product_data:
-            for history in item.get('history', []):
-                flattened.append({
-                    'nmID': item['nmID'],
-                    'dt': history['dt'],
-                    'ordersCount': history['ordersCount'],
-                    'ordersSumRub': history['ordersSumRub'],
-                    'addToCartCount': history['addToCartCount']
-                })
-        return pd.DataFrame(flattened)
-
-    def run_pipeline(self):
-        all_campaigns = []
-        all_stats = []
-        
-        # Process each project
-        for project_name, api_key in self.projects.items():
-            print(f"Processing {project_name}...")
-            
-            # Get campaign data
-            campaigns = self.get_campaign_data(project_name, api_key)
-            if campaigns.empty:
-                continue
-                
-            # Get campaign details
-            details = self.get_campaign_details(project_name, api_key, campaigns['advertId'].tolist())
-            
-            # Get campaign statistics
-            stats = self.get_campaign_stats(project_name, api_key, details['advertId'].tolist())
-            stats['Project'] = project_name
-            
-            # Merge campaign data
-            merged = stats.merge(
-                details[["advertId", "endTime", "createTime", "startTime", "name", "status", "type"]],
-                on="advertId",
-                how="left"
-            )
-            merged.rename(columns={
-                "name": "name_campaign",
-                "date": "day"
-            }, inplace=True)
-            
-            all_campaigns.append(merged)
-            
-            # Get product statistics
-            nm_ids = merged['nmId'].unique().tolist()
-            if nm_ids:
-                product_stats = self.get_product_stats(project_name, api_key, nm_ids)
-                if not product_stats.empty:
-                    product_stats['day'] = pd.to_datetime(product_stats['dt']).dt.date
-                    merged = merged.merge(
-                        product_stats[['nmID', 'day', 'ordersCount', 'ordersSumRub', 'addToCartCount']],
-                        left_on=['nmId', 'day'],
-                        right_on=['nmID', 'day'],
-                        how='left'
-                    )
-                    merged.drop(columns=['nmID'], inplace=True)
-                    merged.fillna(0, inplace=True)
-            
-            all_stats.append(merged)
-        
-        # Combine all data
-        final_df = pd.concat(all_stats, ignore_index=True)
-        final_df['Marketplace'] = 'Wildberries'
-        
-        # Clean and transform data
-        final_df['status'] = final_df['status'].replace(self.status_mapping)
-        final_df['type'] = final_df['type'].replace(self.type_mapping)
-        for col in ['endTime', 'createTime', 'startTime']:
-            final_df[col] = pd.to_datetime(final_df[col]).dt.date
-        
-        # Insert into ClickHouse
-        self.insert_to_clickhouse(final_df)
-
-    def insert_to_clickhouse(self, df):
-        client = get_client(
-            host='rc1a-j5ou9lq30ldal602.mdb.yandexcloud.net',
-            port=8443,
-            username='user1',
-            password=self.password,
-            database='user1',
-            secure=True,
-            verify=False
+            continue
+        df = pd.json_normalize(
+            data['adverts'],
+            record_path='advert_list',
+            meta=['type', 'status', 'count']
         )
-        
-        columns = [
-            'nmId', 'day', 'name', 'views', 'clicks', 'sum', 'atbs', 'orders', 'shks',
-            'sum_price', 'advertId', 'Project', 'Marketplace', 'endTime', 'createTime', 
-            'startTime', 'name_campaign', 'status', 'type', 'ordersCount', 
-            'ordersSumRub', 'addToCartCount'
-        ]
-        
-        data = [tuple(row) for row in df[columns].to_numpy()]
-        #client.insert('campaign_data_wb', data, column_names=columns)
-        print("Data successfully inserted into ClickHouse")
+        df['changeTime'] = pd.to_datetime(df['changeTime'])
+        df = df.reset_index(drop=True)
+        dfs[project] = df
+    return dfs
+
+def fetch_all_advert_details(advert_dfs, headers_dict):
+    campaigns = {}
+    for project, df in advert_dfs.items():
+        chunk_size = 50
+        chunks = [df['advertId'][i:i + chunk_size].tolist() for i in range(0, len(df), chunk_size)]
+        campaigns[project] = fetch_advert_details(chunks, headers_dict[project], project)
+    return campaigns
+
+def flatten_fullstats_data(fullstats_data):
+    flattened = []
+    for entry in fullstats_data:
+        advertId = entry["advertId"]
+        for day in entry["days"]:
+            date = day["date"]
+            for app in day["apps"]:
+                for nm in app["nm"]:
+                    flattened.append({
+                        "date": date,
+                        "nmId": nm["nmId"],
+                        "name": nm["name"],
+                        "views": nm["views"],
+                        "clicks": nm["clicks"],
+                        "ctr": nm["ctr"],
+                        "cpc": nm["cpc"],
+                        "sum": nm["sum"],
+                        "atbs": nm["atbs"],
+                        "orders": nm["orders"],
+                        "cr": nm["cr"],
+                        "shks": nm["shks"],
+                        "sum_price": nm["sum_price"],
+                        "advertId": advertId
+                    })
+    return pd.DataFrame(flattened)
+
+def merge_and_process_data(campaign_data, filtered_df):
+    # Merge with campaign metadata
+    df_final = campaign_data.merge(
+        filtered_df[["advertId", "endTime", "createTime", "startTime", "name", "status", "type"]],
+        on="advertId",
+        how="left"
+    )
+    df_final = df_final.drop(columns=["ctr", "cpc", "cr"])
+    df_final.rename(columns={"name_x": "name_product", "name_y": "name_campaign"}, inplace=True)
+    return df_final
+
+def process_nm_data(nm_data):
+    flattened = []
+    for card in nm_data:
+        sp = card["statistics"]["selectedPeriod"]
+        conv = sp["conversions"]
+        stocks = card["stocks"]
+        flattened.append({
+            "nmID": card["nmID"],
+            "vendorCode": card["vendorCode"],
+            "brandName": card["brandName"],
+            "objectID": card["object"]["id"],
+            "objectName": card["object"]["name"],
+            "begin": sp["begin"],
+            "end": sp["end"],
+            "openCardCount": sp["openCardCount"],
+            "addToCartCount": sp["addToCartCount"],
+            "ordersCount": sp["ordersCount"],
+            "ordersSumRub": sp["ordersSumRub"],
+            "buyoutsCount": sp["buyoutsCount"],
+            "buyoutsSumRub": sp["buyoutsSumRub"],
+            "cancelCount": sp["cancelCount"],
+            "cancelSumRub": sp["cancelSumRub"],
+            "avgOrdersCountPerDay": sp["avgOrdersCountPerDay"],
+            "avgPriceRub": sp["avgPriceRub"],
+            "addToCartPercent": conv["addToCartPercent"],
+            "cartToOrderPercent": conv["cartToOrderPercent"],
+            "buyoutsPercent": conv["buyoutsPercent"],
+            "stocksMp": stocks["stocksMp"],
+            "stocksWb": stocks["stocksWb"]
+        })
+    return pd.DataFrame(flattened)
+
+# --- MAIN FUNCTION ---
+
+def main():
+    yesterday = get_yesterday_date()
+    date_interval = get_date_interval(yesterday)
+
+    # Step 1: Fetch advert counts
+    advert_data = {}
+    for project, header in HEADERS.items():
+        raw = fetch_advert_count(header)
+        if raw:
+            advert_data[project] = raw
+
+    # Step 2: Process advert data
+    advert_dfs = process_advert_data(*[advert_data.get(p) for p in PROJECT_NAMES])
+
+    # Step 3: Fetch detailed advert info
+    campaign_headers = {p: HEADERS[p] for p in advert_dfs}
+    campaign_dfs = fetch_all_advert_details(advert_dfs, campaign_headers)
+
+    # Step 4: Fetch full stats
+    fullstats_data = {}
+    for project, df in campaign_dfs.items():
+        data = fetch_full_stats(df, HEADERS[project], date_interval, project)
+        fullstats_data[project] = data
+
+    # Step 5: Flatten full stats
+    flattened_dfs = {}
+    for project, data in fullstats_data.items():
+        if data:
+            df = flatten_fullstats_data(data)
+            df["Project"] = project
+            df["Marketplace"] = "Wildberries"
+            df["date"] = pd.to_datetime(df["date"]).dt.date
+            df.rename(columns={"date": "day"}, inplace=True)
+            flattened_dfs[project] = df
+
+    # Step 6: Combine all campaign data
+    combined_campaigns = pd.concat(flattened_dfs.values(), ignore_index=True)
+
+    # Step 7: Add readable status/type
+    status_mapping = {
+        -1: "Кампания в процессе удаления",
+        4: "Готова к запуску",
+        7: "Кампания завершена",
+        8: "Отказался",
+        9: "Идут показы",
+        11: "Кампания на паузе"
+    }
+    type_mapping = {
+        4: "Кампания в каталоге (устаревший тип)",
+        5: "Кампания в карточке товара (устаревший тип)",
+        6: "Кампания в поиске (устаревший тип)",
+        7: "Кампания в рекомендациях на главной странице (устаревший тип)",
+        8: "Автоматическая кампания",
+        9: "Аукцион"
+    }
+
+    # Apply mappings
+    combined_campaigns['status'] = combined_campaigns['status'].replace(status_mapping)
+    combined_campaigns['type'] = combined_campaigns['type'].replace(type_mapping)
+
+    # Step 8: Fetch NM report
+    nm_data = {}
+    for project, header in HEADERS.items():
+        data = fetch_nm_report(header, date_interval['begin'], date_interval['end'], project)
+        nm_data[project] = data
+
+    # Step 9: Flatten NM data
+    nm_dfs = {}
+    for project, data in nm_data.items():
+        if data:
+            df = process_nm_data(data)
+            df["Project"] = project
+            df["Marketplace"] = "Wildberries"
+            df["begin"] = pd.to_datetime(df["begin"]).dt.date
+            df.rename(columns={'begin': 'day', 'nmID': 'nmId'}, inplace=True)
+            nm_dfs[project] = df
+
+    # Step 10: Merge with NM data
+    merged_df = pd.merge(
+        combined_campaigns,
+        pd.concat(nm_dfs.values(), ignore_index=True)[['nmId', 'day', 'ordersCount', 'ordersSumRub', 'addToCartCount']],
+        on=['nmId', 'day'],
+        how='left'
+    )
+
+    # Fill NaN values
+    merged_df[['ordersCount', 'ordersSumRub', 'addToCartCount']] = merged_df[['ordersCount', 'ordersSumRub', 'addToCartCount']].fillna(0)
+
+    # Step 11: Insert into ClickHouse
+    password = os.getenv('ClickHouse')
+    client = get_client(
+        host='rc1a-j5ou9lq30ldal602.mdb.yandexcloud.net',
+        port=8443,
+        username='user1',
+        password=password,
+        database='user1',
+        secure=True,
+        verify=False
+    )
+
+    columns = [
+        'nmId', 'day', 'name_product', 'views', 'clicks', 'sum', 'atbs', 'orders', 'shks',
+        'sum_price', 'advertId', 'Project', 'Marketplace', 'endTime', 'createTime', 'startTime',
+        'name_campaign', 'status', 'type', 'ordersCount', 'ordersSumRub', 'addToCartCount'
+    ]
+
+    merged_df = merged_df[columns]
+    data = [tuple(row) for row in merged_df.to_numpy()]
+    table_name = 'campaign_data_wb'
+
+    try:
+        client.insert(table_name, data, column_names=columns)
+        print("✅ Data inserted successfully!")
+    except Exception as e:
+        print(f"❌ Failed to insert data: {e}")
 
 if __name__ == "__main__":
-    pipeline = WildberriesDataPipeline()
-    pipeline.run_pipeline()
+    main()
