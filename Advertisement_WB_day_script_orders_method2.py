@@ -3,6 +3,7 @@ import pandas as pd
 from clickhouse_connect import get_client
 from datetime import datetime, timedelta, date
 from dotenv import load_dotenv
+import json
 import os
 import time
 
@@ -489,7 +490,8 @@ df_final_copy = df_final.copy()
 
 # Convert 'day' and 'dt' to datetime for accurate merging
 df_final_copy['date'] = pd.to_datetime(df_final_copy['date']).dt.date
-df_copy['begin'] = pd.to_datetime(df_copy['begin']).dt.date
+# Ensure you are converting the correct column
+df_copy['begin'] = pd.to_datetime(df_copy['begin'], errors='coerce').dt.date
 
 # Rename columns in df2 to match df1 for merging
 df_copy.rename(columns={'nmID': 'nmId', 'begin': 'day'}, inplace=True)
