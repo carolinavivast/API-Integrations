@@ -1,0 +1,72 @@
+2025-05-15 12:52:31,539 - INFO - Starting stock data collection process
+2025-05-15 12:52:31,540 - INFO - Fetching data from API: https://api.i-colors.ru/ms/stocks/smart/now
+2025-05-15 12:52:33,079 - ERROR - Error transforming data: 'price'
+2025-05-15 12:52:33,080 - ERROR - No valid data after transformation
+2025-05-15 14:14:05,643 - INFO - Starting stock data collection process
+2025-05-15 14:14:05,644 - INFO - Fetching data from API: https://api.i-colors.ru/ms/stocks/smart/now
+2025-05-15 14:14:08,153 - ERROR - Error transforming data: Object of type Timestamp is not JSON serializable
+Traceback (most recent call last):
+  File "C:\Users\User\AppData\Local\Temp\ipykernel_11448\148312883.py", line 83, in transform_data
+    df['metadata_json'] = df.apply(lambda x: json.dumps(x.to_dict()), axis=1)
+                          ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\User\Desktop\Data\.venv\Lib\site-packages\pandas\core\frame.py", line 10374, in apply
+    return op.apply().__finalize__(self, method="apply")
+           ~~~~~~~~^^
+  File "c:\Users\User\Desktop\Data\.venv\Lib\site-packages\pandas\core\apply.py", line 916, in apply
+    return self.apply_standard()
+           ~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\User\Desktop\Data\.venv\Lib\site-packages\pandas\core\apply.py", line 1063, in apply_standard
+    results, res_index = self.apply_series_generator()
+                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\User\Desktop\Data\.venv\Lib\site-packages\pandas\core\apply.py", line 1081, in apply_series_generator
+    results[i] = self.func(v, *self.args, **self.kwargs)
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Temp\ipykernel_11448\148312883.py", line 83, in <lambda>
+    df['metadata_json'] = df.apply(lambda x: json.dumps(x.to_dict()), axis=1)
+                                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\User\Python\Lib\json\__init__.py", line 231, in dumps
+    return _default_encoder.encode(obj)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\User\Python\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+  File "C:\Users\User\Python\Lib\json\encoder.py", line 261, in iterencode
+    return _iterencode(o, 0)
+  File "C:\Users\User\Python\Lib\json\encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+                    f'is not JSON serializable')
+TypeError: Object of type Timestamp is not JSON serializable
+2025-05-15 14:14:08,194 - ERROR - No valid data after transformation
+2025-05-15 14:19:42,911 - INFO - Starting stock data collection process
+2025-05-15 14:19:42,912 - INFO - Fetching data from API: https://api.i-colors.ru/ms/stocks/smart/now
+2025-05-15 14:19:44,159 - ERROR - Error transforming data: Object of type Timestamp is not JSON serializable
+Traceback (most recent call last):
+  File "C:\Users\User\AppData\Local\Temp\ipykernel_11448\2154012346.py", line 99, in transform_data
+    df['metadata_json'] = df.apply(lambda x: json.dumps(x.to_dict()), axis=1)
+                          ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\User\Desktop\Data\.venv\Lib\site-packages\pandas\core\frame.py", line 10374, in apply
+    return op.apply().__finalize__(self, method="apply")
+           ~~~~~~~~^^
+  File "c:\Users\User\Desktop\Data\.venv\Lib\site-packages\pandas\core\apply.py", line 916, in apply
+    return self.apply_standard()
+           ~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\User\Desktop\Data\.venv\Lib\site-packages\pandas\core\apply.py", line 1063, in apply_standard
+    results, res_index = self.apply_series_generator()
+                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "c:\Users\User\Desktop\Data\.venv\Lib\site-packages\pandas\core\apply.py", line 1081, in apply_series_generator
+    results[i] = self.func(v, *self.args, **self.kwargs)
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Temp\ipykernel_11448\2154012346.py", line 99, in <lambda>
+    df['metadata_json'] = df.apply(lambda x: json.dumps(x.to_dict()), axis=1)
+                                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\User\Python\Lib\json\__init__.py", line 231, in dumps
+    return _default_encoder.encode(obj)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\User\Python\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+  File "C:\Users\User\Python\Lib\json\encoder.py", line 261, in iterencode
+    return _iterencode(o, 0)
+  File "C:\Users\User\Python\Lib\json\encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+                    f'is not JSON serializable')
+TypeError: Object of type Timestamp is not JSON serializable
+2025-05-15 14:19:44,161 - ERROR - No valid data after transformation

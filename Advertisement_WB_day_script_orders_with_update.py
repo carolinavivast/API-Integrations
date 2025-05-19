@@ -258,17 +258,11 @@ def main():
         df_grouped['date'] = pd.to_datetime(df_grouped['date']).dt.date
         df_history['dt'] = pd.to_datetime(df_history['dt']).dt.date
         
-        # Rename columns in df2 to match df1 for merging
-        df_history.rename(columns={'nmID': 'nmId', 'dt': 'day'}, inplace=True)
-        df_grouped.rename(columns={'date': 'day'}, inplace=True)
-        
         merged_df = pd.merge(
-            df_history,
-            df_grouped[['nmId', 'day', 'name_product', 'views', 'clicks', 'sum', 'atbs',
-            'orders', 'shks', 'sum_price', 'advertId', 'Project', 'Marketplace',
-            'endTime', 'createTime', 'startTime', 'name_campaign', 'status',
-            'type']],
-            on=['nmId', 'day'],
+            df_grouped,
+            df_history[['nmID', 'dt', 'ordersCount', 'ordersSumRub', 'addToCartCount']],
+            left_on=['nmId', 'date'],
+            right_on=['nmID', 'dt'],
             how='left'
         )
         
@@ -319,11 +313,11 @@ def main():
     
     # Delete existing data for these dates to avoid duplicates
     delete_query = f"ALTER TABLE {table_name} DELETE WHERE day >= '{start_date}' AND day <= '{end_date}'"
-    ch_client.command(delete_query)
+    #ch_client.command(delete_query)
     print(f"Deleted existing data for dates {start_date} to {end_date}")
     
     # Insert new data
-    ch_client.insert(table_name, data_to_insert, column_names=columns)
+    #ch_client.insert(table_name, data_to_insert, column_names=columns)
     print(f"Successfully inserted data for dates {start_date} to {end_date}")
 
 if __name__ == "__main__":
