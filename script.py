@@ -148,7 +148,8 @@ if response_guten_report.status_code == 200 and response_giper_report.status_cod
     combined_df = pd.concat([df_guten, df_giper, df_kitchen,df_smart], axis=0, ignore_index=True)
 
     # Add the current date and marketplace information
-    today = datetime.now() 
+    #today = datetime.now() - timedelta(days=3)
+    today = datetime.now()
     combined_df['Date'] = today
     combined_df['Marketplace'] = 'Wildberries'
     combined_df['brand'] = combined_df['brand'].str.upper()
@@ -167,6 +168,7 @@ if response_guten_report.status_code == 200 and response_giper_report.status_cod
     # Define connection parameters for ClickHouse
     password = os.getenv('ClickHouse')
     # Define connection parameters
+
     client = get_client(
         host='rc1a-j5ou9lq30ldal602.mdb.yandexcloud.net',  # Your Yandex Cloud ClickHouse host
         port=8443,                                          # Yandex Cloud uses port 8443 for HTTPS

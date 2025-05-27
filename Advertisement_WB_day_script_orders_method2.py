@@ -156,7 +156,7 @@ print(filtered_df)
 url_fullstats = "https://advert-api.wildberries.ru/adv/v2/fullstats"
 
 #!DATE *********************************************************************
-yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+yesterday = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
 specific_date = str(yesterday)
 #! *************************************************************************
 
@@ -553,5 +553,5 @@ print("Sample data to insert:", data[:5])
 table_name = 'campaign_data_wb'
 
 # Use the insert method for bulk insertion
-#client.insert(table_name, data, column_names=columns)
+client.insert(table_name, data, column_names=columns)
 print("Data inserted successfully!")
