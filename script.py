@@ -148,7 +148,7 @@ if response_guten_report.status_code == 200 and response_giper_report.status_cod
     combined_df = pd.concat([df_guten, df_giper, df_kitchen,df_smart], axis=0, ignore_index=True)
 
     # Add the current date and marketplace information
-    #today = datetime.now() - timedelta(days=3)
+    #today = datetime.now() - timedelta(days=6)
     today = datetime.now()
     combined_df['Date'] = today
     combined_df['Marketplace'] = 'Wildberries'
