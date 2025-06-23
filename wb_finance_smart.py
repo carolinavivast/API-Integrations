@@ -80,6 +80,7 @@ def main():
     )
 
     print(f"Got {len(report)} records")
+    
     if report:
         print("First record:", report[0])
 
